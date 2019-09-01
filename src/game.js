@@ -1,7 +1,7 @@
 import { routine, Random } from "./utils"
 import Grid from "./grid"
-import { Feature, generate } from "./mazegen"
-
+import { Feature, generate, shiftFeature } from "./mazegen"
+import Swipe from "./swipe"
 const Param = {
   // width and height of rooms in pixels
   ROOM_SIZE: 5,
@@ -47,6 +47,11 @@ const drawRoomFeatures = function (ctx, cx, cy, features) {
   }
 }
 
+const MoveNorth = {offset: {x: 0, y: -1}, mask: Feature.North}
+const MoveEast = {offset: {x: 1, y: 0}, mask: Feature.East}
+const MoveSouth = {offset: {x: 0, y: 1}, mask: Feature.South}
+const MoveWest = {offset: {x: -1, y: 0}, mask: Feature.West}
+
 export default class Game {
   constructor(canvas) {
     this.canvas = canvas
@@ -57,25 +62,22 @@ export default class Game {
       parseInt(canvas.width / Param.SCALE / Param.ROOM_SIZE),
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
     this.reset()
-    window.addEventListener("keydown", this.handleKeypress.bind(this))
+    window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
+    let swipe = new Swipe(window.document.body)
+    swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
   }
   reset(newHash) {
     if (newHash)
       window.history.pushState(null, null, "#" + random.getState())
     this.grid.reset()
-    generate(this.grid,
-      random,
-      parseInt(this.grid.width / 2),
-      parseInt(this.grid.height / 2),
-      0,
-      Param.ITERATIONS
-    )
-    this.player = {
-      pos: {
-        x: parseInt(this.grid.width / 2),
-        y: parseInt(this.grid.height / 2)
-      }
-    }
+    const centerX = parseInt(this.grid.width / 2)
+    const centerY = parseInt(this.grid.height / 2)
+    generate(this.grid, random, centerX, centerY, 0, Param.ITERATIONS)
+    this.player = { pos: { x: centerX, y: centerY } }
+    this.generateGems()
+    this.draw()
+  }
+  generateGems() {
     this.numGems = 3 + Math.round(random.next() * 9)
     this.gems = []
     while (this.gems.length < this.numGems) {
@@ -87,19 +89,31 @@ export default class Game {
         this.gems.push(gem)
       }
     }
-    this.draw()
   }
-  playerMoveBy(dx, dy) {
+  playerMoveBy(deltaVector) {
     let initX = this.player.pos.x
     let initY = this.player.pos.y
     routine(500, function (delta) {
-      this.player.pos.x = initX + dx * delta
-      this.player.pos.y = initY + dy * delta
+      this.player.pos.x = initX + deltaVector.x * delta
+      this.player.pos.y = initY + deltaVector.y * delta
       if (delta === 1) {
         this.checkGemsCollected()
       }
       this.draw()
     }.bind(this))
+  }
+  playerMove(dir) {
+    let target = {
+      x: this.player.pos.x + dir.offset.x,
+      y: this.player.pos.y + dir.offset.y
+    }
+    let roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
+    let roomTo = this.grid.get(target.x, target.y)
+    let canMoveTo = (roomTo & shiftFeature(dir.mask)) !== 0
+    let canMoveFrom = (roomFrom & dir.mask) !== 0
+    if (canMoveFrom && canMoveTo) {
+      this.playerMoveBy(dir.offset)
+    }
   }
   checkGemsCollected() {
     this.gems = this.gems.filter(function (gem) {
@@ -109,42 +123,26 @@ export default class Game {
       this.reset(true)
     }
   }
-  handleKeypress(e) {
-    switch (e.key) {
+  handleInput(e, input) {
+    switch (input) {
+      case "SwipeUp":
       case "ArrowUp":
-        var target = { x: this.player.pos.x, y: this.player.pos.y - 1 }
-        var roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
-        var roomTo = this.grid.get(target.x, target.y)
-        if ((roomTo & Feature.South) !== 0 && (roomFrom & Feature.North) !== 0) {
-          this.playerMoveBy(0, -1)
-        }
+        this.playerMove(MoveNorth)
         e.preventDefault()
         break;
+      case "SwipeDown":
       case "ArrowDown":
-        var target = { x: this.player.pos.x, y: this.player.pos.y + 1 }
-        var roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
-        var roomTo = this.grid.get(target.x, target.y)
-        if ((roomTo & Feature.North) !== 0 && (roomFrom & Feature.South) !== 0) {
-          this.playerMoveBy(0, 1)
-        }
+        this.playerMove(MoveSouth)
         e.preventDefault()
         break;
+      case "SwipeLeft":
       case "ArrowLeft":
-        var target = { x: this.player.pos.x - 1, y: this.player.pos.y }
-        var roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
-        var roomTo = this.grid.get(target.x, target.y)
-        if ((roomTo & Feature.East) !== 0 && (roomFrom & Feature.West) !== 0) {
-          this.playerMoveBy(-1, 0)
-        }
+        this.playerMove(MoveWest)
         e.preventDefault()
         break;
+      case "SwipeRight":
       case "ArrowRight":
-        var target = { x: this.player.pos.x + 1, y: this.player.pos.y }
-        var roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
-        var roomTo = this.grid.get(target.x, target.y)
-        if ((roomTo & Feature.West) !== 0 && (roomFrom & Feature.East) !== 0) {
-          this.playerMoveBy(1, 0)
-        }
+        this.playerMove(MoveEast)
         e.preventDefault()
         break;
     }

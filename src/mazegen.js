@@ -33,7 +33,7 @@ const offset = function (x, y, dir) {
   return { x: x + OFFSET[dir].x, y: y + OFFSET[dir].y }
 }
 
-const shiftFeature = function (features) {
+export const shiftFeature = function (features) {
   return rotl(features, 4, 8)
 }
 
