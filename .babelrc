@@ -1,0 +1,10 @@
+{
+    "presets": [
+        [
+            "@babel/preset-env",
+            {
+                "targets": "> 0.2% and last 1 version and not dead"
+            }
+        ]
+    ]
+}
