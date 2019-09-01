@@ -5,7 +5,7 @@ const {CleanWebpackPlugin} = require("clean-webpack-plugin")
 module.exports = {
   entry: "./src/main.js",
   output: {
-    path: path.resolve(__dirname, "dist")
+    path: path.resolve(__dirname, "docs") // using docs because github pages
   },
   plugins: [
     new CleanWebpackPlugin(),
@@ -26,6 +26,6 @@ module.exports = {
   },
   devtool: "inline-source-map",
   devServer: {
-    contentBase: path.join(__dirname, "dist")
+    contentBase: path.join(__dirname, "docs") // using docs because github pages
   }
 }
