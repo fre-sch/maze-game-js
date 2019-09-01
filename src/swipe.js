@@ -37,6 +37,7 @@ export default class Swipe {
       } else {
         this.onSwipe(event, "SwipeDown")
       }
+      event.preventDefault()
     }
 
     this.xDown = null

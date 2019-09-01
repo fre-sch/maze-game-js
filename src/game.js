@@ -63,7 +63,7 @@ export default class Game {
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
     this.reset()
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
-    let swipe = new Swipe(window.document.body)
+    let swipe = new Swipe(canvas)
     swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
   }
   reset(newHash) {
