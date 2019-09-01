@@ -1,6 +1,7 @@
 const path = require("path")
 const HtmlWebpackPlugin = require("html-webpack-plugin")
 const {CleanWebpackPlugin} = require("clean-webpack-plugin")
+const MiniCssExtractPlugin = require("mini-css-extract-plugin")
 
 module.exports = (env, {mode}) => ({
   entry: "./src/main.js",
@@ -9,6 +10,7 @@ module.exports = (env, {mode}) => ({
   },
   plugins: [
     new CleanWebpackPlugin(),
+    new MiniCssExtractPlugin(),
     new HtmlWebpackPlugin({
       title: "Collect gems in maze"
     })
@@ -18,20 +20,15 @@ module.exports = (env, {mode}) => ({
       {
         test: /\.css$/,
         exclude: /(docs|node_modules)/,
-        loaders: (mode === "production"
-          ? [
-            "file-loader",
-            "extract-loader",
-            "css-loader"
-          ]
-          : [
-            "style-loader",
-            {
-              loader: "css-loader",
-              options: {sourceMap: true}
+        use: [
+          {
+            loader: MiniCssExtractPlugin.loader,
+            options: {
+              hmr: mode === "development"
             }
-          ]
-        )
+          },
+          "css-loader"
+        ]
       },
       {
         test: /\.js$/,
