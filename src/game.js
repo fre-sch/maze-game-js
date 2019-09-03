@@ -2,6 +2,8 @@ import { routine, Random } from "./utils"
 import Grid from "./grid"
 import { Feature, generate, shiftFeature } from "./mazegen"
 import Swipe from "./swipe"
+import TileImage from "../assets/tiles.png"
+
 const Param = {
   // width and height of rooms in pixels
   ROOM_SIZE: 5,
@@ -12,38 +14,77 @@ const Param = {
 
 const random = new Random(window.location.hash.substr(1))
 
-const strokePath = function (ctx, x1, y1, x2, y2) {
-  ctx.beginPath()
-  ctx.moveTo(x1, y1)
-  ctx.lineTo(x2, y2)
-  ctx.stroke()
+const computeTile = function(grid, x, y) {
+  let v = grid.get(x, y)
+  return v * (
+    grid.getDefault(x, y - 1, 1) // N 1
+    | grid.getDefault(x + 1, y, 1) << 1 // E 2
+    | grid.getDefault(x, y + 1, 1) << 2 // S 4
+    | grid.getDefault(x - 1, y, 1) << 3 // W 8
+  )
 }
 
-const drawRoomFeatures = function (ctx, cx, cy, features) {
-  var doorSize = Math.round(Param.ROOM_SIZE / 3)
-  if ((features & Feature.NorthDoor) !== 0) {
-    strokePath(ctx, cx + doorSize, cy + .5, cx + Param.ROOM_SIZE - doorSize, cy + .5)
+const generateTiles = function (tileGrid, mazeGrid) {
+  let floor = 0
+  let wall = 1
+  let tmpGrid = new Grid(tileGrid.width, tileGrid.height)
+  tmpGrid.fill(0, 0, tmpGrid.width, tmpGrid.height, wall)
+  for (let my = 0, mh = mazeGrid.height; my < mh; my++) {
+    for (let mx = 0, mw = mazeGrid.width; mx < mw; mx++) {
+      let features = mazeGrid.get(mx, my)
+      if (features === 0) continue
+      let doorSize = Math.floor(Param.ROOM_SIZE / 3)
+      let tx = mx * Param.ROOM_SIZE
+      let ty = my * Param.ROOM_SIZE
+      tmpGrid.fill(tx + 1, ty + 1,
+        Param.ROOM_SIZE - 2, Param.ROOM_SIZE - 2,
+        floor)
+      if ((features & Feature.NorthDoor) !== 0) {
+        tmpGrid.fill(tx + 1 + doorSize, ty,
+          doorSize, 1,
+          floor)
+      }
+      if ((features & Feature.NorthWall) !== 0) {
+        tmpGrid.fill(tx + 1, ty,
+          Param.ROOM_SIZE - 2, 1,
+          floor)
+      }
+      if ((features & Feature.EastDoor) !== 0) {
+        tmpGrid.fill(tx + Param.ROOM_SIZE - 1, ty + 1 + doorSize,
+          1, doorSize,
+          floor)
+      }
+      if ((features & Feature.EastWall) !== 0) {
+        tmpGrid.fill(tx + Param.ROOM_SIZE - 1, ty + 1,
+          1, Param.ROOM_SIZE - 2,
+          floor)
+      }
+      if ((features & Feature.SouthDoor) !== 0) {
+        tmpGrid.fill(tx + 1 + doorSize, ty + Param.ROOM_SIZE - 1,
+          doorSize, 1,
+          floor)
+      }
+      if ((features & Feature.SouthWall) !== 0) {
+        tmpGrid.fill(tx + 1, ty + Param.ROOM_SIZE - 1,
+          Param.ROOM_SIZE - 2, 1,
+          floor)
+      }
+      if ((features & Feature.WestDoor) !== 0) {
+        tmpGrid.fill(tx, ty + 1 + doorSize,
+          1, doorSize,
+          floor)
+      }
+      if ((features & Feature.WestWall) !== 0) {
+        tmpGrid.fill(tx, ty + 1,
+          1, Param.ROOM_SIZE - 2,
+          floor)
+      }
+    }
   }
-  if ((features & Feature.NorthWall) !== 0) {
-    strokePath(ctx, cx + 1, cy + .5, cx + Param.ROOM_SIZE - 1, cy + .5)
-  }
-  if ((features & Feature.EastDoor) !== 0) {
-    strokePath(ctx, cx + Param.ROOM_SIZE - .5, cy + doorSize, cx + Param.ROOM_SIZE - .5, cy + Param.ROOM_SIZE - doorSize)
-  }
-  if ((features & Feature.EastWall) !== 0) {
-    strokePath(ctx, cx + Param.ROOM_SIZE - .5, cy + 1, cx + Param.ROOM_SIZE - .5, cy + Param.ROOM_SIZE - 1)
-  }
-  if ((features & Feature.SouthDoor) !== 0) {
-    strokePath(ctx, cx + doorSize, cy + Param.ROOM_SIZE - .5, cx + Param.ROOM_SIZE - doorSize, cy + Param.ROOM_SIZE - .5)
-  }
-  if ((features & Feature.SouthWall) !== 0) {
-    strokePath(ctx, cx + 1, cy + Param.ROOM_SIZE - .5, cx + Param.ROOM_SIZE - 1, cy + Param.ROOM_SIZE - .5)
-  }
-  if ((features & Feature.WestDoor) !== 0) {
-    strokePath(ctx, cx + .5, cy + doorSize, cx + .5, cy + Param.ROOM_SIZE - doorSize)
-  }
-  if ((features & Feature.WestWall) !== 0) {
-    strokePath(ctx, cx + .5, cy + 1, cx + .5, cy + Param.ROOM_SIZE - 1)
+  for (let y = 0, th = tileGrid.height; y < th; y++) {
+    for (let x = 0, tw = tileGrid.width; x < tw; x++) {
+      tileGrid.set(x, y, computeTile(tmpGrid, x, y))
+    }
   }
 }
 
@@ -58,22 +99,35 @@ export default class Game {
     this.canvas.width = window.innerWidth
     this.canvas.height = window.innerHeight
     this.ctx = this.canvas.getContext("2d")
-    this.grid = new Grid(
+    this.mazeGrid = new Grid(
       parseInt(canvas.width / Param.SCALE / Param.ROOM_SIZE),
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
-    this.reset()
+    this.tileGrid = new Grid(
+      parseInt(canvas.width / Param.SCALE),
+      parseInt(canvas.width / Param.SCALE),
+    )
+    this.player = {health: 3}
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
     let swipe = new Swipe(canvas)
     swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
+
+    this.tiles = new Image()
+    this.tiles.onload = () => {
+      this.tileSize = parseInt(this.tiles.naturalWidth / 4)
+      this.reset()
+    }
+    this.tiles.src = TileImage
   }
   reset(newHash) {
     if (newHash)
       window.history.pushState(null, null, "#" + random.getState())
-    this.grid.reset()
-    const centerX = parseInt(this.grid.width / 2)
-    const centerY = parseInt(this.grid.height / 2)
-    generate(this.grid, random, centerX, centerY, 0, Param.ITERATIONS)
-    this.player = { pos: { x: centerX, y: centerY } }
+    this.mazeGrid.reset()
+    this.tileGrid.reset()
+    const centerX = parseInt(this.mazeGrid.width / 2)
+    const centerY = parseInt(this.mazeGrid.height / 2)
+    generate(this.mazeGrid, random, centerX, centerY, 0, Param.ITERATIONS)
+    generateTiles(this.tileGrid, this.mazeGrid)
+    this.player.pos = { x: centerX, y: centerY }
     this.generateGems()
     this.draw()
   }
@@ -82,10 +136,10 @@ export default class Game {
     this.gems = []
     while (this.gems.length < this.numGems) {
       let gem = {
-        x: parseInt(random.next() * this.grid.width),
-        y: parseInt(random.next() * this.grid.height)
+        x: parseInt(random.next() * this.mazeGrid.width),
+        y: parseInt(random.next() * this.mazeGrid.height)
       }
-      if (this.grid.get(gem.x, gem.y) !== 0) {
+      if (this.mazeGrid.get(gem.x, gem.y) !== 0) {
         this.gems.push(gem)
       }
     }
@@ -107,8 +161,8 @@ export default class Game {
       x: this.player.pos.x + dir.offset.x,
       y: this.player.pos.y + dir.offset.y
     }
-    let roomFrom = this.grid.get(this.player.pos.x, this.player.pos.y)
-    let roomTo = this.grid.get(target.x, target.y)
+    let roomFrom = this.mazeGrid.get(this.player.pos.x, this.player.pos.y)
+    let roomTo = this.mazeGrid.get(target.x, target.y)
     let canMoveTo = (roomTo & shiftFeature(dir.mask)) !== 0
     let canMoveFrom = (roomFrom & dir.mask) !== 0
     if (canMoveFrom && canMoveTo) {
@@ -154,15 +208,25 @@ export default class Game {
   }
   drawMaze(ctx) {
     ctx.save()
-    ctx.scale(Param.SCALE, Param.SCALE)
+    ctx.scale(
+      parseInt(Param.SCALE / this.tileSize),
+      parseInt(Param.SCALE / this.tileSize))
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
-    for (let gx = 0; gx < this.grid.width; gx++) {
-      for (let gy = 0; gy < this.grid.height; gy++) {
-        this.drawRoom(ctx, gx, gy)
+    ctx.imageSmoothingEnabled = false
+    for (let y = 0, th = this.tileGrid.height; y < th; y++) {
+      for (let x = 0, tw = this.tileGrid.width; x < tw; x++) {
+        this.drawTile(ctx, x, y, this.tileGrid.get(x, y))
       }
     }
     ctx.restore()
+  }
+  drawTile (ctx, x, y, tileId) {
+    let sx = (tileId % 4) * this.tileSize
+    let sy = Math.floor(tileId / 4) * this.tileSize
+    ctx.drawImage(this.tiles,
+      sx, sy, this.tileSize, this.tileSize,
+      x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize)
   }
   drawPlayer(ctx) {
     ctx.save()
@@ -190,33 +254,6 @@ export default class Game {
         canvasY + roomCenterOffset,
         Param.SCALE, Param.SCALE)
     }
-    ctx.restore()
-  }
-  drawRoom(ctx, gx, gy) {
-    var features = this.grid.get(gx, gy)
-    if (features == 0) {
-      return
-    }
-    var cx = gx * Param.ROOM_SIZE
-    var cy = gy * Param.ROOM_SIZE
-
-    ctx.save()
-    ctx.fillStyle = "rgba(128,128,128,1)"
-    ctx.fillRect(cx, cy, Param.ROOM_SIZE, Param.ROOM_SIZE)
-    ctx.fillStyle = "rgba(64,64,64,1)"
-    ctx.fillRect(cx + 1, cy + 1, Param.ROOM_SIZE - 2, Param.ROOM_SIZE - 2)
-    ctx.strokeStyle = "rgba(64, 64, 64, 1)"
-    drawRoomFeatures(ctx, cx, cy, features)
-    ctx.restore()
-
-    ctx.save()
-    ctx.strokeStyle = "rgba(0, 0, 0, .1)"
-    ctx.scale(1 / Param.SCALE, 1 / Param.SCALE)
-    ctx.strokeRect(
-      cx * Param.SCALE + .5,
-      cy * Param.SCALE + .5,
-      Param.ROOM_SIZE * Param.SCALE - 1,
-      Param.ROOM_SIZE * Param.SCALE - 1)
     ctx.restore()
   }
 }
