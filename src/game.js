@@ -104,7 +104,7 @@ export default class Game {
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
     this.tileGrid = new Grid(
       parseInt(canvas.width / Param.SCALE),
-      parseInt(canvas.width / Param.SCALE),
+      parseInt(canvas.height / Param.SCALE),
     )
     this.player = {health: 3}
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
