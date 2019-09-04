@@ -1,15 +1,14 @@
 import {clamp} from "./utils"
 
 export default class Grid {
-  constructor(width, height, defaultFill=()=>0) {
+  constructor(width, height) {
     this.width = width
     this.height = height
-    this.defaultFill = defaultFill
-    this.cells = new Array(this.width * this.height).fill(null).map(defaultFill)
+    this.cells = new Array(this.width * this.height).fill(0)
   }
 
   reset () {
-    this.cells = new Array(this.width * this.height).fill(null).map(this.defaultFill)
+    this.cells = new Array(this.width * this.height).fill(0)
   }
 
   within (x, y) {

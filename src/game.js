@@ -3,6 +3,7 @@ import Grid from "./grid"
 import { Feature, generate, shiftFeature } from "./mazegen"
 import Swipe from "./swipe"
 import TileImage from "../assets/tiles.png"
+import SpritesImage from "../assets/sprites.png"
 
 const Param = {
   // width and height of rooms in pixels
@@ -88,6 +89,15 @@ const generateTiles = function (tileGrid, mazeGrid) {
   }
 }
 
+const loadImage = function (src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.addEventListener("load", () => resolve(img))
+    img.addEventListener("error", (err) => reject(err))
+    img.src = src
+  })
+}
+
 const MoveNorth = {offset: {x: 0, y: -1}, mask: Feature.North}
 const MoveEast = {offset: {x: 1, y: 0}, mask: Feature.East}
 const MoveSouth = {offset: {x: 0, y: 1}, mask: Feature.South}
@@ -99,6 +109,7 @@ export default class Game {
     this.canvas.width = window.innerWidth
     this.canvas.height = window.innerHeight
     this.ctx = this.canvas.getContext("2d")
+    this.bgCanvas = new OffscreenCanvas(this.canvas.width, this.canvas.height)
     this.mazeGrid = new Grid(
       parseInt(canvas.width / Param.SCALE / Param.ROOM_SIZE),
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
@@ -111,12 +122,14 @@ export default class Game {
     let swipe = new Swipe(canvas)
     swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
 
-    this.tiles = new Image()
-    this.tiles.onload = () => {
-      this.tileSize = parseInt(this.tiles.naturalWidth / 4)
-      this.reset()
-    }
-    this.tiles.src = TileImage
+    Promise.all([loadImage(TileImage), loadImage(SpritesImage)])
+      .then((images) => {
+        this.tiles = images[0]
+        this.tileSize = this.tiles.naturalWidth / 4
+        this.sprites = images[1]
+        this.spriteSize = 8
+        this.reset()
+      })
   }
   reset(newHash) {
     if (newHash)
@@ -127,26 +140,30 @@ export default class Game {
     const centerY = parseInt(this.mazeGrid.height / 2)
     generate(this.mazeGrid, random, centerX, centerY, 0, Param.ITERATIONS)
     generateTiles(this.tileGrid, this.mazeGrid)
-    this.player.pos = { x: centerX, y: centerY }
-    this.generateGems()
+    this.drawMaze(this.bgCanvas.getContext("2d"))
+    this.player.pos = {x: centerX, y: centerY, dir: 1}
+    this.generateTreasures()
     this.draw()
   }
-  generateGems() {
-    this.numGems = 3 + Math.round(random.next() * 9)
-    this.gems = []
-    while (this.gems.length < this.numGems) {
-      let gem = {
+  generateTreasures() {
+    this.numTreasures = 3 + Math.round(random.next() * 9)
+    this.treasures = []
+    let check = 1000
+    while (this.treasures.length < this.numTreasures && check > 0) {
+      check--
+      let treasure = {
         x: parseInt(random.next() * this.mazeGrid.width),
         y: parseInt(random.next() * this.mazeGrid.height)
       }
-      if (this.mazeGrid.get(gem.x, gem.y) !== 0) {
-        this.gems.push(gem)
+      if (this.mazeGrid.get(treasure.x, treasure.y) !== 0) {
+        this.treasures.push(treasure)
       }
     }
   }
   playerMoveBy(deltaVector) {
     let initX = this.player.pos.x
     let initY = this.player.pos.y
+    this.player.pos.dir = deltaVector.x >= 0 ? 1 : -1
     routine(500, function (delta) {
       this.player.pos.x = initX + deltaVector.x * delta
       this.player.pos.y = initY + deltaVector.y * delta
@@ -170,10 +187,10 @@ export default class Game {
     }
   }
   checkGemsCollected() {
-    this.gems = this.gems.filter(function (gem) {
+    this.treasures = this.treasures.filter(function (gem) {
       return !(gem.x === this.player.pos.x && gem.y === this.player.pos.y)
     }.bind(this))
-    if (this.gems.length === 0) {
+    if (this.treasures.length === 0) {
       this.reset(true)
     }
   }
@@ -202,8 +219,8 @@ export default class Game {
     }
   }
   draw() {
-    this.drawMaze(this.ctx)
-    this.drawGems(this.ctx)
+    this.ctx.drawImage(this.bgCanvas, 0, 0)
+    this.drawTreasures(this.ctx)
     this.drawPlayer(this.ctx)
   }
   drawMaze(ctx) {
@@ -211,8 +228,6 @@ export default class Game {
     ctx.scale(
       parseInt(Param.SCALE / this.tileSize),
       parseInt(Param.SCALE / this.tileSize))
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
     ctx.imageSmoothingEnabled = false
     for (let y = 0, th = this.tileGrid.height; y < th; y++) {
       for (let x = 0, tw = this.tileGrid.width; x < tw; x++) {
@@ -226,33 +241,38 @@ export default class Game {
     let sy = Math.floor(tileId / 4) * this.tileSize
     ctx.drawImage(this.tiles,
       sx, sy, this.tileSize, this.tileSize,
-      x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize)
+      x * this.tileSize, y * this.tileSize,
+      this.tileSize, this.tileSize)
   }
   drawPlayer(ctx) {
+    const scale = Math.floor(Param.SCALE / this.spriteSize)
+    const offsetMult = Param.ROOM_SIZE * this.spriteSize
+    const offset = Param.ROOM_SIZE * this.spriteSize * 0.5 - this.spriteSize * 0.5
     ctx.save()
-    ctx.fillStyle = "rgba(80, 220, 255, 1)"
-    var offsetMult = Param.ROOM_SIZE * Param.SCALE
-    var roomCenterOffset = offsetMult * .4
-    var canvasX = this.player.pos.x * offsetMult
-    var canvasY = this.player.pos.y * offsetMult
-    ctx.fillRect(
-      canvasX + roomCenterOffset,
-      canvasY + roomCenterOffset,
-      Param.SCALE, Param.SCALE)
+    ctx.scale(scale, scale)
+    ctx.translate(
+      this.player.pos.x * offsetMult + offset,
+      this.player.pos.y * offsetMult + offset)
+    ctx.imageSmoothingEnabled = false
+    ctx.scale(this.player.pos.dir, 1)
+    ctx.drawImage(this.sprites,
+      0, 0, this.spriteSize, this.spriteSize,
+      0, 0,
+      this.spriteSize * this.player.pos.dir, this.spriteSize)
     ctx.restore()
   }
-  drawGems(ctx) {
+  drawTreasures(ctx) {
+    const scale = Math.floor(Param.SCALE / this.spriteSize)
+    const offsetMult = Param.ROOM_SIZE * this.spriteSize
+    const offset = Param.ROOM_SIZE * this.spriteSize * 0.5 - this.spriteSize * 0.5
     ctx.save()
-    ctx.fillStyle = "rgba(80, 255, 80, 1)"
-    var offsetMult = Param.ROOM_SIZE * Param.SCALE
-    var roomCenterOffset = offsetMult * .4
-    for (var i = 0, n = this.gems.length; i < n; i++) {
-      var canvasX = this.gems[i].x * offsetMult
-      var canvasY = this.gems[i].y * offsetMult
-      ctx.fillRect(
-        canvasX + roomCenterOffset,
-        canvasY + roomCenterOffset,
-        Param.SCALE, Param.SCALE)
+    ctx.scale(scale, scale)
+    ctx.imageSmoothingEnabled = false
+    for (var i = 0, n = this.treasures.length; i < n; i++) {
+      ctx.drawImage(this.sprites,
+        8, 0, this.spriteSize, this.spriteSize,
+        this.treasures[i].x * offsetMult + offset, this.treasures[i].y * offsetMult + offset,
+        this.spriteSize, this.spriteSize)
     }
     ctx.restore()
   }
