@@ -89,6 +89,18 @@ const generateTiles = function (tileGrid, mazeGrid) {
   }
 }
 
+const offscreenCanvas = function(width, height) {
+    try {
+        return new OffscreenCanvas(width, height)
+    }
+    catch {
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        return canvas
+    }
+}
+
 const loadImage = function (src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -109,7 +121,7 @@ export default class Game {
     this.canvas.width = window.innerWidth
     this.canvas.height = window.innerHeight
     this.ctx = this.canvas.getContext("2d")
-    this.bgCanvas = new OffscreenCanvas(this.canvas.width, this.canvas.height)
+    this.bgCanvas = offscreenCanvas(this.canvas.width, this.canvas.height)
     this.mazeGrid = new Grid(
       parseInt(canvas.width / Param.SCALE / Param.ROOM_SIZE),
       parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
