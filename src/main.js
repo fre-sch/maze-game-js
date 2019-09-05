@@ -17,7 +17,7 @@ startScreen.innerHTML = `
 <div>Click or tap to start</div>
 </div>
 `
-let canvas = document.createElement("canvas")
+const canvas = document.createElement("canvas")
 document.body.appendChild(canvas)
 document.body.appendChild(startScreen)
 window.game = new Game(canvas)

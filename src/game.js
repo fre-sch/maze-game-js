@@ -1,15 +1,19 @@
 import { routine, Random } from "./utils"
 import Grid from "./grid"
+import EntityGrid from "./entityGrid"
 import { Feature, generate, shiftFeature } from "./mazegen"
 import Swipe from "./swipe"
 import TileImage from "../assets/tiles.png"
 import SpritesImage from "../assets/sprites.png"
 
 const Param = {
-  // width and height of rooms in pixels
+  // width and height of rooms in tiles
   ROOM_SIZE: 5,
-  // larger scale for bigger pixels
-  SCALE: 32,
+  // width and height of tiles in (scaled) pixels
+  TILE_SIZE: 8,
+  SPRITE_SIZE: 8,
+  // canvas pixel scale
+  SCALE: 4,
   ITERATIONS: 12
 }
 
@@ -115,21 +119,45 @@ const MoveEast = {offset: {x: 1, y: 0}, mask: Feature.East}
 const MoveSouth = {offset: {x: 0, y: 1}, mask: Feature.South}
 const MoveWest = {offset: {x: -1, y: 0}, mask: Feature.West}
 
+class Gem {
+  constructor() {
+    this.spriteIndex = 1
+    this.type = "gem"
+  }
+  collect (player) {
+    player.gemsCollected += 1
+  }
+}
+
+class Food {
+  constructor() {
+    this.spriteIndex = 2
+    this.type = "food"
+    this.stamina = 30
+  }
+  collect (player) {
+    player.stamina = Math.min(100, player.stamina + this.stamina)
+  }
+}
+
 export default class Game {
   constructor(canvas) {
     this.canvas = canvas
-    this.canvas.width = window.innerWidth
-    this.canvas.height = window.innerHeight
+    this.canvas.width = window.innerWidth - 5
+    this.canvas.height = window.innerHeight - 5
+    this.widthScaled = this.canvas.width / Param.SCALE
+    this.heightScaled = this.canvas.height / Param.SCALE
     this.ctx = this.canvas.getContext("2d")
     this.bgCanvas = offscreenCanvas(this.canvas.width, this.canvas.height)
     this.mazeGrid = new Grid(
-      parseInt(canvas.width / Param.SCALE / Param.ROOM_SIZE),
-      parseInt(canvas.height / Param.SCALE / Param.ROOM_SIZE))
+      parseInt(this.widthScaled / Param.ROOM_SIZE / Param.TILE_SIZE),
+      parseInt(this.heightScaled / Param.ROOM_SIZE / Param.TILE_SIZE))
+    this.entityGrid = new EntityGrid(this.mazeGrid.width, this.mazeGrid.height)
     this.tileGrid = new Grid(
-      parseInt(canvas.width / Param.SCALE),
-      parseInt(canvas.height / Param.SCALE),
+      this.mazeGrid.width * Param.ROOM_SIZE,
+      this.mazeGrid.height * Param.ROOM_SIZE
     )
-    this.player = {health: 3}
+    this.player = {stamina: 100, gemsCollected: 0}
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
     let swipe = new Swipe(canvas)
     swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
@@ -137,16 +165,17 @@ export default class Game {
     Promise.all([loadImage(TileImage), loadImage(SpritesImage)])
       .then((images) => {
         this.tiles = images[0]
-        this.tileSize = this.tiles.naturalWidth / 4
         this.sprites = images[1]
-        this.spriteSize = 8
         this.reset()
       })
   }
+
   reset(newHash) {
-    if (newHash)
+    if (newHash) {
       window.history.pushState(null, null, "#" + random.getState())
+    }
     this.mazeGrid.reset()
+    this.entityGrid.reset()
     this.tileGrid.reset()
     const centerX = parseInt(this.mazeGrid.width / 2)
     const centerY = parseInt(this.mazeGrid.height / 2)
@@ -154,24 +183,27 @@ export default class Game {
     generateTiles(this.tileGrid, this.mazeGrid)
     this.drawMaze(this.bgCanvas.getContext("2d"))
     this.player.pos = {x: centerX, y: centerY, dir: 1}
-    this.generateTreasures()
+    this.generateEntities(Gem, 3, 12)
+    this.generateEntities(Food, 1, 5)
     this.draw()
   }
-  generateTreasures() {
-    this.numTreasures = 3 + Math.round(random.next() * 9)
-    this.treasures = []
-    let check = 1000
-    while (this.treasures.length < this.numTreasures && check > 0) {
-      check--
-      let treasure = {
-        x: parseInt(random.next() * this.mazeGrid.width),
-        y: parseInt(random.next() * this.mazeGrid.height)
-      }
-      if (this.mazeGrid.get(treasure.x, treasure.y) !== 0) {
-        this.treasures.push(treasure)
+
+  generateEntities(entity, min, max) {
+    const count = min + Math.round(random.next() * (max - min))
+    let countPlaced = 0
+    let loopGuard = 1000
+    while (countPlaced < count && loopGuard > 0) {
+      loopGuard--
+      const x = parseInt(random.next() * this.mazeGrid.width)
+      const y = parseInt(random.next() * this.mazeGrid.height)
+      if (this.mazeGrid.get(x, y) !== 0
+        && this.entityGrid.get(x, y) === null) {
+        this.entityGrid.set(x, y, new entity())
+        countPlaced++
       }
     }
   }
+
   playerMoveBy(deltaVector) {
     let initX = this.player.pos.x
     let initY = this.player.pos.y
@@ -180,11 +212,14 @@ export default class Game {
       this.player.pos.x = initX + deltaVector.x * delta
       this.player.pos.y = initY + deltaVector.y * delta
       if (delta === 1) {
-        this.checkGemsCollected()
+        this.player.stamina -= 3
+        this.checkEntities()
+        this.checkEndGame()
       }
       this.draw()
     }.bind(this))
   }
+
   playerMove(dir) {
     let target = {
       x: this.player.pos.x + dir.offset.x,
@@ -198,14 +233,32 @@ export default class Game {
       this.playerMoveBy(dir.offset)
     }
   }
-  checkGemsCollected() {
-    this.treasures = this.treasures.filter(function (gem) {
-      return !(gem.x === this.player.pos.x && gem.y === this.player.pos.y)
-    }.bind(this))
-    if (this.treasures.length === 0) {
-      this.reset(true)
+
+  checkEntities() {
+    const entity = this.entityGrid.get(this.player.pos.x, this.player.pos.y)
+    if (entity) {
+      entity.collect(this.player)
+      this.entityGrid.remove(entity)
     }
   }
+
+  checkEndGame() {
+    console.log(this.player)
+    let reset = false
+    if (this.entityGrid.find("gem").length === 0) {
+      // completed
+      this.player.stamina = Math.min(this.player.stamina + 50, 100)
+      reset = true
+    }
+    if (this.player.stamina <= 0) {
+      // game over
+      this.player.stamina = 100
+      this.player.gemsCollected = 0
+      reset = true
+    }
+    if (reset) this.reset(true)
+  }
+
   handleInput(e, input) {
     switch (input) {
       case "SwipeUp":
@@ -230,17 +283,20 @@ export default class Game {
         break;
     }
   }
+
   draw() {
     this.ctx.drawImage(this.bgCanvas, 0, 0)
-    this.drawTreasures(this.ctx)
+    this.drawEntities(this.ctx)
     this.drawPlayer(this.ctx)
+    this.drawHUD(this.ctx)
   }
+
   drawMaze(ctx) {
     ctx.save()
-    ctx.scale(
-      parseInt(Param.SCALE / this.tileSize),
-      parseInt(Param.SCALE / this.tileSize))
+    ctx.scale(Param.SCALE, Param.SCALE)
     ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = "rgba(48, 52, 109, 1)"
+    ctx.fillRect(0, 0, this.widthScaled, this.heightScaled)
     for (let y = 0, th = this.tileGrid.height; y < th; y++) {
       for (let x = 0, tw = this.tileGrid.width; x < tw; x++) {
         this.drawTile(ctx, x, y, this.tileGrid.get(x, y))
@@ -248,44 +304,66 @@ export default class Game {
     }
     ctx.restore()
   }
+
   drawTile (ctx, x, y, tileId) {
-    let sx = (tileId % 4) * this.tileSize
-    let sy = Math.floor(tileId / 4) * this.tileSize
+    const sx = (tileId % 4) * Param.TILE_SIZE
+    const sy = Math.floor(tileId / 4) * Param.TILE_SIZE
     ctx.drawImage(this.tiles,
-      sx, sy, this.tileSize, this.tileSize,
-      x * this.tileSize, y * this.tileSize,
-      this.tileSize, this.tileSize)
+      sx, sy, Param.TILE_SIZE, Param.TILE_SIZE,
+      x * Param.TILE_SIZE, y * Param.TILE_SIZE,
+      Param.TILE_SIZE, Param.TILE_SIZE)
   }
+
   drawPlayer(ctx) {
-    const scale = Math.floor(Param.SCALE / this.spriteSize)
-    const offsetMult = Param.ROOM_SIZE * this.spriteSize
-    const offset = Param.ROOM_SIZE * this.spriteSize * 0.5 - this.spriteSize * 0.5
+    const offsetMult = Param.ROOM_SIZE * Param.TILE_SIZE
+    const offset = offsetMult * 0.5 - Param.SPRITE_SIZE * 0.5
     ctx.save()
-    ctx.scale(scale, scale)
+    ctx.scale(Param.SCALE, Param.SCALE)
     ctx.translate(
       this.player.pos.x * offsetMult + offset,
       this.player.pos.y * offsetMult + offset)
     ctx.imageSmoothingEnabled = false
-    ctx.scale(this.player.pos.dir, 1)
+    //ctx.scale(this.player.pos.dir, 1)
     ctx.drawImage(this.sprites,
-      0, 0, this.spriteSize, this.spriteSize,
+      0, 0, Param.SPRITE_SIZE, Param.SPRITE_SIZE,
       0, 0,
-      this.spriteSize * this.player.pos.dir, this.spriteSize)
+      Param.SPRITE_SIZE, Param.SPRITE_SIZE)
     ctx.restore()
   }
-  drawTreasures(ctx) {
-    const scale = Math.floor(Param.SCALE / this.spriteSize)
-    const offsetMult = Param.ROOM_SIZE * this.spriteSize
-    const offset = Param.ROOM_SIZE * this.spriteSize * 0.5 - this.spriteSize * 0.5
+
+  drawEntities(ctx) {
+    const offsetMult = Param.ROOM_SIZE * Param.TILE_SIZE
+    const offset = offsetMult * 0.5 - Param.SPRITE_SIZE * 0.5
+    const entities = this.entityGrid.list()
     ctx.save()
-    ctx.scale(scale, scale)
+    ctx.scale(Param.SCALE, Param.SCALE)
     ctx.imageSmoothingEnabled = false
-    for (var i = 0, n = this.treasures.length; i < n; i++) {
+    for (var i = 0, n = entities.length; i < n; i++) {
+      // if (!this.entityVisible(entities[i])) continue
       ctx.drawImage(this.sprites,
-        8, 0, this.spriteSize, this.spriteSize,
-        this.treasures[i].x * offsetMult + offset, this.treasures[i].y * offsetMult + offset,
-        this.spriteSize, this.spriteSize)
+        entities[i].spriteIndex * Param.SPRITE_SIZE, 0,
+        Param.SPRITE_SIZE, Param.SPRITE_SIZE,
+        entities[i].x * offsetMult + offset,
+        entities[i].y * offsetMult + offset,
+        Param.SPRITE_SIZE, Param.SPRITE_SIZE)
     }
+    ctx.restore()
+  }
+
+  drawHUD(ctx) {
+    const h = 5
+    const w = this.widthScaled - 10
+    const iw = w * this.player.stamina / 100 - 2
+    const ih = h - 2
+    const y = this.heightScaled - h
+    ctx.save()
+    ctx.scale(Param.SCALE, Param.SCALE)
+    ctx.fillStyle = "rgba(68, 36, 52, 1)"
+    ctx.fillRect(5, y, w, h)
+    ctx.fillStyle = "rgba(210, 125, 44, 1)"
+    ctx.fillRect(6, y + 1, iw, ih)
+    ctx.font = "bold 8px serif"
+    ctx.fillText(`GEMS: ${this.player.gemsCollected}`, 5, this.heightScaled - 10)
     ctx.restore()
   }
 }
