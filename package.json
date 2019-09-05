@@ -4,6 +4,7 @@
   "description": "Collect gems in random mazes.",
   "main": "main.js",
   "scripts": {
+    "test": "webpack --mode production",
     "start": "webpack-dev-server --mode development --open",
     "build-dev": "webpack --mode development",
     "build": "webpack --mode production"

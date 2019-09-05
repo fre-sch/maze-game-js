@@ -6,7 +6,7 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin")
 module.exports = (env, {mode}) => ({
   entry: "./src/main.js",
   output: {
-    path: path.resolve(__dirname, "docs"), // using docs because github pages
+    path: path.resolve(__dirname, "build"),
     filename: "[name].[contenthash].js"
   },
   plugins: [

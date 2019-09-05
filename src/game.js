@@ -124,8 +124,10 @@ class Gem {
     this.spriteIndex = 1
     this.type = "gem"
   }
+  update() {}
   collect (player) {
     player.gemsCollected += 1
+    return true
   }
 }
 
@@ -135,8 +137,30 @@ class Food {
     this.type = "food"
     this.stamina = 30
   }
+  update() {}
   collect (player) {
     player.stamina = Math.min(100, player.stamina + this.stamina)
+    return true
+  }
+}
+
+class SpikeTrap {
+  constructor() {
+    this.baseSpriteIndex = 3
+    this.spriteIndex = 3
+    this.counter = 0
+    this.type = "spiketrap"
+    this.damage = 1
+  }
+  update() {
+    this.counter++
+    let offset = this.counter % 3 % 2
+    this.spriteIndex = this.baseSpriteIndex + offset
+  }
+  collect (player) {
+    if (this.spriteIndex === 3)
+      player.health -= this.damage
+    return false
   }
 }
 
@@ -157,7 +181,7 @@ export default class Game {
       this.mazeGrid.width * Param.ROOM_SIZE,
       this.mazeGrid.height * Param.ROOM_SIZE
     )
-    this.player = {stamina: 100, gemsCollected: 0}
+    this.player = {health: 3, stamina: 100, gemsCollected: 0}
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
     let swipe = new Swipe(canvas)
     swipe.onSwipe = (e, swipeDir) => this.handleInput(e, swipeDir)
@@ -179,12 +203,13 @@ export default class Game {
     this.tileGrid.reset()
     const centerX = parseInt(this.mazeGrid.width / 2)
     const centerY = parseInt(this.mazeGrid.height / 2)
-    generate(this.mazeGrid, random, centerX, centerY, 0, Param.ITERATIONS)
+    generate(this.mazeGrid, random, centerX, centerY, Feature.DOOR_MASK, Param.ITERATIONS)
     generateTiles(this.tileGrid, this.mazeGrid)
     this.drawMaze(this.bgCanvas.getContext("2d"))
     this.player.pos = {x: centerX, y: centerY, dir: 1}
     this.generateEntities(Gem, 3, 12)
     this.generateEntities(Food, 1, 5)
+    this.generateEntities(SpikeTrap, 1, 5)
     this.draw()
   }
 
@@ -235,24 +260,26 @@ export default class Game {
   }
 
   checkEntities() {
+    const entities = this.entityGrid.list()
+    for (let i = 0; i < entities.length; i++) entities[i].update()
     const entity = this.entityGrid.get(this.player.pos.x, this.player.pos.y)
     if (entity) {
-      entity.collect(this.player)
-      this.entityGrid.remove(entity)
+      if (entity.collect(this.player))
+        this.entityGrid.remove(entity)
     }
   }
 
   checkEndGame() {
-    console.log(this.player)
     let reset = false
     if (this.entityGrid.find("gem").length === 0) {
       // completed
       this.player.stamina = Math.min(this.player.stamina + 50, 100)
       reset = true
     }
-    if (this.player.stamina <= 0) {
+    if (this.player.stamina <= 0 || this.player.health <= 0) {
       // game over
       this.player.stamina = 100
+      this.player.health = 3
       this.player.gemsCollected = 0
       reset = true
     }
@@ -363,7 +390,7 @@ export default class Game {
     ctx.fillStyle = "rgba(210, 125, 44, 1)"
     ctx.fillRect(6, y + 1, iw, ih)
     ctx.font = "bold 8px serif"
-    ctx.fillText(`GEMS: ${this.player.gemsCollected}`, 5, this.heightScaled - 10)
+    ctx.fillText(`GEMS: ${this.player.gemsCollected} HEALTH: ${this.player.health}`, 5, this.heightScaled - 10)
     ctx.restore()
   }
 }
