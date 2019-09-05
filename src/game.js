@@ -323,11 +323,11 @@ export default class Game {
       this.player.pos.x * offsetMult + offset,
       this.player.pos.y * offsetMult + offset)
     ctx.imageSmoothingEnabled = false
-    //ctx.scale(this.player.pos.dir, 1)
+    ctx.scale(this.player.pos.dir, 1)
     ctx.drawImage(this.sprites,
       0, 0, Param.SPRITE_SIZE, Param.SPRITE_SIZE,
       0, 0,
-      Param.SPRITE_SIZE, Param.SPRITE_SIZE)
+      Param.SPRITE_SIZE * this.player.pos.dir, Param.SPRITE_SIZE)
     ctx.restore()
   }
 
