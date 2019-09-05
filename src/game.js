@@ -1,4 +1,4 @@
-import { routine, Random } from "./utils"
+import { routine, Random, loadImage, offscreenCanvas } from "./utils"
 import Grid from "./grid"
 import EntityGrid from "./entityGrid"
 import { Feature, generate, shiftFeature } from "./mazegen"
@@ -93,27 +93,6 @@ const generateTiles = function (tileGrid, mazeGrid) {
   }
 }
 
-const offscreenCanvas = function(width, height) {
-    try {
-        return new OffscreenCanvas(width, height)
-    }
-    catch {
-        const canvas = document.createElement("canvas")
-        canvas.width = width
-        canvas.height = height
-        return canvas
-    }
-}
-
-const loadImage = function (src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.addEventListener("load", () => resolve(img))
-    img.addEventListener("error", (err) => reject(err))
-    img.src = src
-  })
-}
-
 const MoveNorth = {offset: {x: 0, y: -1}, mask: Feature.North}
 const MoveEast = {offset: {x: 1, y: 0}, mask: Feature.East}
 const MoveSouth = {offset: {x: 0, y: 1}, mask: Feature.South}
@@ -146,8 +125,8 @@ class Food {
 
 class SpikeTrap {
   constructor() {
-    this.baseSpriteIndex = 3
-    this.spriteIndex = 3
+    this.baseSpriteIndex = 4
+    this.spriteIndex = 4
     this.counter = 0
     this.type = "spiketrap"
     this.damage = 1
@@ -158,9 +137,21 @@ class SpikeTrap {
     this.spriteIndex = this.baseSpriteIndex + offset
   }
   collect (player) {
-    if (this.spriteIndex === 3)
+    if (this.spriteIndex === this.baseSpriteIndex)
       player.health -= this.damage
     return false
+  }
+}
+
+class Heart {
+  constructor () {
+    this.spriteIndex = 3
+    this.type = "heart"
+  }
+  update () {}
+  collect (player) {
+    player.health += 1
+    return true
   }
 }
 
@@ -210,11 +201,18 @@ export default class Game {
     this.generateEntities(Gem, 3, 12)
     this.generateEntities(Food, 1, 5)
     this.generateEntities(SpikeTrap, 1, 5)
+    this.generateEntities(Heart, .2)
     this.draw()
   }
 
   generateEntities(entity, min, max) {
-    const count = min + Math.round(random.next() * (max - min))
+    let count
+    if (max === undefined) {
+      count = (random.next() < min) ? 1 : 0
+    }
+    else {
+      count = min + Math.round(random.next() * (max - min))
+    }
     let countPlaced = 0
     let loopGuard = 1000
     while (countPlaced < count && loopGuard > 0) {
@@ -390,7 +388,17 @@ export default class Game {
     ctx.fillStyle = "rgba(210, 125, 44, 1)"
     ctx.fillRect(6, y + 1, iw, ih)
     ctx.font = "bold 8px serif"
-    ctx.fillText(`GEMS: ${this.player.gemsCollected} HEALTH: ${this.player.health}`, 5, this.heightScaled - 10)
+    const text = `Gems: ${this.player.gemsCollected}`
+    const textWidth = ctx.measureText("Gems: MMM").width
+    ctx.fillText(text,
+      this.widthScaled - textWidth, this.heightScaled - 10)
+    ctx.imageSmoothingEnabled = false
+    for (let x = 5, i = 0; i < this.player.health; i++, x += Param.SPRITE_SIZE + 5) {
+      ctx.drawImage(this.sprites,
+        3 * Param.SPRITE_SIZE, 0,
+        Param.SPRITE_SIZE, Param.SPRITE_SIZE,
+        x, this.heightScaled - 16, Param.SPRITE_SIZE, Param.SPRITE_SIZE)
+    }
     ctx.restore()
   }
 }

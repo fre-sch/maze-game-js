@@ -82,3 +82,24 @@ export class Random {
     return this.generator.state.toString(36)
   }
 }
+
+export const loadImage = function (src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.addEventListener("load", () => resolve(img))
+    img.addEventListener("error", (err) => reject(err))
+    img.src = src
+  })
+}
+
+export const offscreenCanvas = function(width, height) {
+  try {
+      return new OffscreenCanvas(width, height)
+  }
+  catch {
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      return canvas
+  }
+}
