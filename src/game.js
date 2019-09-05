@@ -274,7 +274,11 @@ export default class Game {
       this.player.stamina = Math.min(this.player.stamina + 50, 100)
       reset = true
     }
-    if (this.player.stamina <= 0 || this.player.health <= 0) {
+    if (this.player.stamina <= 0 && this.player.health > 0) {
+      this.player.stamina = 20
+      this.player.health -= 1
+    }
+    if (this.player.health <= 0) {
       // game over
       this.player.stamina = 100
       this.player.health = 3
