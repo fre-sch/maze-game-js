@@ -1,8 +1,9 @@
 export default class Swipe {
-  constructor(element) {
+  constructor(element, onSwipe) {
     this.xDown = null
     this.yDown = null
     this.element = element
+    this.onSwipe = onSwipe
     this.element.addEventListener(
       'touchstart', this.handleTouchStart.bind(this), false)
     this.element.addEventListener(
@@ -28,13 +29,16 @@ export default class Swipe {
     if (Math.abs(this.xDiff) > Math.abs(this.yDiff)) { // Most significant.
       if (this.xDiff > 0) {
         this.onSwipe(event, "SwipeLeft")
-      } else {
+      }
+      else {
         this.onSwipe(event, "SwipeRight")
       }
-    } else {
+    }
+    else {
       if (this.yDiff > 0) {
         this.onSwipe(event, "SwipeUp")
-      } else {
+      }
+      else {
         this.onSwipe(event, "SwipeDown")
       }
       event.preventDefault()
