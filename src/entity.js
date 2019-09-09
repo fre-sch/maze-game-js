@@ -44,7 +44,7 @@ export class SpikeTrap {
     this.spriteIndex = this.baseSpriteIndex + offset
   }
   collect (player) {
-    if (this.spriteIndex === this.baseSpriteIndex)
+    if (this.spriteIndex !== this.baseSpriteIndex)
       player.health -= this.damage
     return false
   }

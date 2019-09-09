@@ -5,7 +5,7 @@ html, body {
     touch-action: none;
 }
 
-.start-screen {
+.start-screen, .death-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -21,7 +21,7 @@ html, body {
     text-align: center;
 }
 
-.start-screen .title {
+.start-screen .title, .death-screen .title {
     font-size: 4rem;
     font-weight: bold;
     font-variant: small-caps;
@@ -32,4 +32,14 @@ html, body {
         -1px 1px 1px rgba(210, 125, 44, 1),
         1px 1px 1px rgba(210, 125, 44, 1)
         ;
+}
+
+.death-screen.hide {
+    display:none;
+}
+
+.stats {
+    margin-top: 1rem;
+    color: #854c30;
+    font-size: 2rem;
 }

@@ -108,6 +108,10 @@ const MoveWest = { offset: { x: -1, y: 0 }, mask: Feature.West }
 
 export default class Game {
   constructor(canvas) {
+    const state = this.loadState()
+    Object.assign(this, state)
+    // this.player = playerBaseState
+    // this.stats = {maxGemsCollected, deaths}
     this.canvas = canvas
     this.canvas.width = window.innerWidth - 4 // arbitrary margin to avoid scrollbars
     this.canvas.height = window.innerHeight - 4 // arbitrary margin to avoid scrollbars
@@ -121,9 +125,9 @@ export default class Game {
     this.entityGrid = new EntityGrid(this.mazeGrid.width, this.mazeGrid.height)
     this.tileGrid = new Grid(
       this.mazeGrid.width * ROOM_SIZE, this.mazeGrid.height * ROOM_SIZE)
-    this.player = { health: 3, stamina: 100, gemsCollected: 0 }
     window.addEventListener("keydown", (e) => this.handleInput(e, e.key))
-    const swipe = new Swipe(canvas, (e, swipeDir) => this.handleInput(e, swipeDir))
+    this.canvas.addEventListener("click", (e) => this.handleInput(e, "click"))
+    this.swipeHandler = new Swipe(canvas, (e, swipeDir) => this.handleInput(e, swipeDir))
 
     Promise.all([loadImage(TileImage), loadImage(SpritesImage)])
       .then((images) => {
@@ -131,6 +135,49 @@ export default class Game {
         this.sprites = images[1]
         this.reset()
       })
+  }
+
+  playerBaseState() {
+    return {
+      pos: {x: 0, y: 0},
+      health: 3,
+      stamina: 100,
+      gemsCollected: 0
+    }
+  }
+
+  baseState() {
+    return {
+      player: this.playerBaseState(),
+      stats: {
+        maxGemsCollected: 0,
+        deaths: 0
+      }
+    }
+  }
+
+  loadState() {
+    const stateRaw = localStorage.getItem("state")
+    if (stateRaw) {
+      try {
+        return JSON.parse(stateRaw)
+      }
+      catch {
+        return this.baseState()
+      }
+    }
+    return this.baseState()
+  }
+
+  saveState() {
+    const state = {
+      player: this.player,
+      stats: {
+        maxGemsCollected: this.stats.maxGemsCollected,
+        deaths: this.stats.deaths
+      }
+    }
+    localStorage.setItem("state", JSON.stringify(state))
   }
 
   reset(newHash) {
@@ -186,7 +233,7 @@ export default class Game {
       if (delta === 1) {
         this.player.stamina -= 3
         this.checkEntities()
-        this.checkEndGame()
+        this.endMove()
       }
       this.draw()
     })
@@ -206,6 +253,13 @@ export default class Game {
     }
   }
 
+  playerRest() {
+    this.player.stamina -= 1
+    this.checkEntities()
+    this.endMove()
+    this.draw()
+  }
+
   checkEntities() {
     const entities = this.entityGrid.list()
     for (let i = 0; i < entities.length; i++) {
@@ -218,8 +272,11 @@ export default class Game {
     }
   }
 
-  checkEndGame() {
+  endMove() {
     let reset = false
+    this.stats.maxGemsCollected = Math.max(
+      this.stats.maxGemsCollected,
+      this.player.gemsCollected)
     if (this.entityGrid.find("gem").length === 0) {
       // completed
       this.player.stamina = Math.min(this.player.stamina + 50, 100)
@@ -231,11 +288,12 @@ export default class Game {
     }
     if (this.player.health <= 0) {
       // game over
-      this.player.stamina = 100
-      this.player.health = 3
-      this.player.gemsCollected = 0
+      this.stats.deaths += 1
+      this.player = this.playerBaseState()
       reset = true
+      this.showDeathScreen(this)
     }
+    this.saveState()
     if (reset) this.reset(true)
   }
 
@@ -259,6 +317,11 @@ export default class Game {
       case "SwipeRight":
       case "ArrowRight":
         this.playerMove(MoveEast)
+        e.preventDefault()
+        break;
+      case "click":
+      case " ":
+        this.playerRest()
         e.preventDefault()
         break;
     }
