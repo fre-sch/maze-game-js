@@ -4,7 +4,8 @@ import EntityGrid from "./entityGrid"
 import { Feature, generate, shiftFeature } from "./mazegen"
 import Swipe from "./swipe"
 import { Gem, Food, SpikeTrap, Heart, Rubble } from "./entity"
-import TileImage from "../assets/tiles.png"
+import TilesStoneBrick from "../assets/tiles_stonebrick.png"
+import TilesCaveBrick from "../assets/tiles_cavebrick.png"
 import SpritesImage from "../assets/sprites.png"
 
 const scaleForDisplay = function () {
@@ -29,12 +30,17 @@ const drawSprite = function (ctx, spriteSheet, spriteIndex, x, y, flip = false) 
 
 const computeTile = function (grid, x, y) {
   let v = grid.get(x, y)
-  return v * (
+  const tile = v * (
     grid.getDefault(x, y - 1, 1) // N 1
     | grid.getDefault(x + 1, y, 1) << 1 // E 2
     | grid.getDefault(x, y + 1, 1) << 2 // S 4
     | grid.getDefault(x - 1, y, 1) << 3 // W 8
   )
+  let variant = random.next() < 0.25
+  if (variant && (tile === 3 || tile === 9 || tile === 11)) {
+    return tile - 1
+  }
+  return tile
 }
 
 const generateTiles = function (tileGrid, mazeGrid) {
@@ -129,10 +135,14 @@ export default class Game {
     this.canvas.addEventListener("click", (e) => this.handleInput(e, "click"))
     this.swipeHandler = new Swipe(canvas, (e, swipeDir) => this.handleInput(e, swipeDir))
 
-    Promise.all([loadImage(TileImage), loadImage(SpritesImage)])
+    Promise.all([
+      loadImage(TilesStoneBrick),
+      loadImage(TilesCaveBrick),
+      loadImage(SpritesImage)
+    ])
       .then((images) => {
-        this.tiles = images[0]
-        this.sprites = images[1]
+        this.tiles = [images[0], images[1]]
+        this.sprites = images[2]
         this.reset()
       })
   }
@@ -231,7 +241,7 @@ export default class Game {
       this.player.pos.x = initX + deltaVector.x * delta
       this.player.pos.y = initY + deltaVector.y * delta
       if (delta === 1) {
-        this.player.stamina -= 3
+        this.player.stamina -= 4
         this.checkEntities()
         this.endMove()
       }
@@ -254,7 +264,7 @@ export default class Game {
   }
 
   playerRest() {
-    this.player.stamina -= 1
+    this.player.stamina -= 2
     this.checkEntities()
     this.endMove()
     this.draw()
@@ -279,7 +289,7 @@ export default class Game {
       this.player.gemsCollected)
     if (this.entityGrid.find("gem").length === 0) {
       // completed
-      this.player.stamina = Math.min(this.player.stamina + 50, 100)
+      this.player.stamina = Math.min(this.player.stamina + 40, 100)
       reset = true
     }
     if (this.player.stamina <= 0 && this.player.health > 0) {
@@ -335,6 +345,7 @@ export default class Game {
   }
 
   drawMaze(ctx) {
+    const variant = Math.round(random.next())
     ctx.save()
     ctx.imageSmoothingEnabled = false
     ctx.scale(SCALE, SCALE)
@@ -342,16 +353,16 @@ export default class Game {
     ctx.fillRect(0, 0, this.widthScaled, this.heightScaled)
     for (let y = 0, th = this.tileGrid.height; y < th; y++) {
       for (let x = 0, tw = this.tileGrid.width; x < tw; x++) {
-        this.drawTile(ctx, x, y, this.tileGrid.get(x, y))
+        this.drawTile(ctx, this.tiles[variant], x, y, this.tileGrid.get(x, y))
       }
     }
     ctx.restore()
   }
 
-  drawTile(ctx, x, y, tileId) {
+  drawTile(ctx, tileSet, x, y, tileId) {
     const sx = (tileId % 4) * TILE_SIZE
     const sy = Math.floor(tileId / 4) * TILE_SIZE
-    ctx.drawImage(this.tiles,
+    ctx.drawImage(tileSet,
       sx, sy, TILE_SIZE, TILE_SIZE,
       x * TILE_SIZE, y * TILE_SIZE,
       TILE_SIZE, TILE_SIZE)
