@@ -20,9 +20,10 @@ const SCALE = scaleForDisplay()
 const ITERATIONS = 12
 const random = new Random(window.location.hash.substr(1))
 
-const drawSprite = function (ctx, spriteSheet, spriteIndex, x, y, flip = false) {
+const drawSprite = function (ctx, spriteSheet, spriteIndex, x, y, options={}) {
+  const {flip = false, sequenceIndex = 0} = options
   ctx.drawImage(spriteSheet,
-    spriteIndex * SPRITE_SIZE, 0,
+    spriteIndex * SPRITE_SIZE, sequenceIndex,
     SPRITE_SIZE, SPRITE_SIZE,
     x, y,
     flip ? -SPRITE_SIZE : SPRITE_SIZE, SPRITE_SIZE)
@@ -114,10 +115,11 @@ const MoveWest = { offset: { x: -1, y: 0 }, mask: Feature.West }
 
 export default class Game {
   constructor(canvas) {
-    const state = this.loadState()
-    Object.assign(this, state)
+    // initializes state to:
     // this.player = playerBaseState
     // this.stats = {maxGemsCollected, deaths}
+    const state = this.loadState()
+    Object.assign(this, state)
     this.canvas = canvas
     this.canvas.width = window.innerWidth - 4 // arbitrary margin to avoid scrollbars
     this.canvas.height = window.innerHeight - 4 // arbitrary margin to avoid scrollbars
@@ -161,22 +163,29 @@ export default class Game {
       player: this.playerBaseState(),
       stats: {
         maxGemsCollected: 0,
-        deaths: 0
+        deaths: 0,
+        levelsCompleted: 0,
+        totalMoves: 0
       }
     }
   }
 
   loadState() {
     const stateRaw = localStorage.getItem("state")
+    const baseState = this.baseState()
     if (stateRaw) {
       try {
-        return JSON.parse(stateRaw)
+        const loadedState = JSON.parse(stateRaw)
+        const state = Object.assign({}, baseState)
+        Object.assign(state.player, loadedState.player)
+        Object.assign(state.stats, loadedState.stats)
+        return state
       }
       catch {
-        return this.baseState()
+        return baseState
       }
     }
-    return this.baseState()
+    return baseState
   }
 
   saveState() {
@@ -184,10 +193,18 @@ export default class Game {
       player: this.player,
       stats: {
         maxGemsCollected: this.stats.maxGemsCollected,
-        deaths: this.stats.deaths
+        deaths: this.stats.deaths,
+        levelsCompleted: this.stats.levelsCompleted,
+        totalMoves: this.stats.totalMoves
       }
     }
     localStorage.setItem("state", JSON.stringify(state))
+  }
+
+  statAverageMovesPerLevel() {
+    if (this.stats.totalMoves > 0 && this.stats.levelsCompleted > 0)
+      return Math.round(this.stats.totalMoves / this.stats.levelsCompleted, 2)
+    return 0
   }
 
   reset(newHash) {
@@ -287,8 +304,10 @@ export default class Game {
     this.stats.maxGemsCollected = Math.max(
       this.stats.maxGemsCollected,
       this.player.gemsCollected)
+    this.stats.totalMoves += 1
     if (this.entityGrid.find("gem").length === 0) {
       // completed
+      this.stats.levelsCompleted += 1
       this.player.stamina = Math.min(this.player.stamina + 40, 100)
       reset = true
     }
@@ -304,7 +323,20 @@ export default class Game {
       this.showDeathScreen(this)
     }
     this.saveState()
-    if (reset) this.reset(true)
+    if (reset) {
+      this.fadeOut(this.ctx, 500, () => this.reset(true))
+    }
+  }
+
+  fadeOut(ctx, duration, cbEndOfFade) {
+    routine(duration, (delta) => {
+      ctx.save()
+      ctx.scale(SCALE, SCALE)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.1)"
+      ctx.fillRect(0, 0, this.widthScaled, this.heightScaled)
+      this.ctx.restore()
+      if (delta === 1) cbEndOfFade()
+    })
   }
 
   handleInput(e, input) {
@@ -382,7 +414,7 @@ export default class Game {
       this.player.pos.x * offsetMult + offset,
       this.player.pos.y * offsetMult + offset)
     ctx.scale(this.player.pos.dir, 1)
-    drawSprite(ctx, this.sprites, 0, 0, 0, this.player.pos.dir < 0)
+    drawSprite(ctx, this.sprites, 0, 0, 0, {flip: this.player.pos.dir < 0})
     ctx.restore()
   }
 

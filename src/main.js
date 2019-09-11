@@ -16,17 +16,19 @@ hideStartScreen = (e) => {
 startScreen.classList.add("start-screen")
 startScreen.addEventListener("click", hideStartScreen)
 startScreen.innerHTML = `
-<div>
+<div class="inner">
 <div class="title">Collect Gems</div>
 <div>
-  Press arrow keys to move.<br/>
-  Or swipe to move.<br/>
-  Click or tap to start
+  Press arrow keys to move, Space to wait a turn.<br/>
+  Or swipe to move, tap to wait a turn.<br/>
+  Click or tap to start<br/>
 </div>
-<div class="stats small">
-Max gems collected: ${game.stats.maxGemsCollected}<br/>
-Deaths: ${game.stats.deaths}
-</div>
+<table class="stats small">
+<tr><td>Max gems collected:</td><td>${game.stats.maxGemsCollected}</td></tr>
+<tr><td>Deaths:</td><td>${game.stats.deaths}</td></tr>
+<tr><td>Levels completed:</td><td>${game.stats.levelsCompleted}</td></tr>
+<tr><td>Average moves per level:</td><td>${game.statAverageMovesPerLevel()}</td></tr>
+</table>
 </div>
 `
 document.body.appendChild(startScreen)
@@ -37,10 +39,12 @@ deathScreen.innerHTML = `
 <div>
   <div class="title">You died</div>
   <div>Click or tap to continue.</div>
-  <div class="stats small">
-  Max gems collected: <span class="maxGemsCollected"></span><br/>
-  Deaths: <span class="deaths"></span>
-  </div>
+  <table class="stats small">
+  <tr><td>Max gems collected:</td><td class="maxGemsCollected"></td></tr>
+  <tr><td>Deaths:</td><td class="deaths"></td></tr>
+  <tr><td>Levels completed:</td><td class="levelsCompleted"></td></tr>
+  <tr><td>Average moves per level:</td><td class="averageMovesPerLevel"></td></tr>
+  </table>
 </div>
 `
 deathScreen.addEventListener("click", (e) => {
@@ -51,5 +55,7 @@ document.body.appendChild(deathScreen)
 game.showDeathScreen = (game) => {
   deathScreen.querySelector(".maxGemsCollected").innerHTML = game.stats.maxGemsCollected
   deathScreen.querySelector(".deaths").innerHTML = game.stats.deaths
+  deathScreen.querySelector(".levelsCompleted").innerHTML = game.stats.levelsCompleted
+  deathScreen.querySelector(".averageMovesPerLevel").innerHTML = game.statAverageMovesPerLevel()
   deathScreen.classList.remove("hide")
 }

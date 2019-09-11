@@ -18,10 +18,13 @@ html, body {
     color: rgba(210, 125, 44, 1);
     font-size: 2.5rem;
     font-family: serif;
-    text-align: center;
+}
+.start-screen .inner {
+    width: 40%;
 }
 
 .start-screen .title, .death-screen .title {
+    text-align: center;
     font-size: 4rem;
     font-weight: bold;
     font-variant: small-caps;
@@ -39,7 +42,9 @@ html, body {
 }
 
 .stats {
-    margin-top: 1rem;
+    border-spacing: 0;
+    margin: 1rem auto 0 auto;
     color: #854c30;
     font-size: 2rem;
+    text-align: left;
 }
