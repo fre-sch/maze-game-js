@@ -345,15 +345,19 @@ export default class Game {
   }
 
   drawMaze(ctx) {
-    const variant = Math.round(random.next())
+    const variantIndex = Math.round(random.next())
+    const variantImg = this.tiles[variantIndex]
     ctx.save()
     ctx.imageSmoothingEnabled = false
     ctx.scale(SCALE, SCALE)
-    ctx.fillStyle = "rgba(48, 52, 109, 1)"
-    ctx.fillRect(0, 0, this.widthScaled, this.heightScaled)
+    // hack to draw background based on tile color
+    const lastTileOffset = TILE_SIZE * 4 - 1
+    ctx.drawImage(variantImg,
+      lastTileOffset, lastTileOffset, 1, 1,
+      0, 0, this.widthScaled, this.heightScaled)
     for (let y = 0, th = this.tileGrid.height; y < th; y++) {
       for (let x = 0, tw = this.tileGrid.width; x < tw; x++) {
-        this.drawTile(ctx, this.tiles[variant], x, y, this.tileGrid.get(x, y))
+        this.drawTile(ctx, variantImg, x, y, this.tileGrid.get(x, y))
       }
     }
     ctx.restore()
