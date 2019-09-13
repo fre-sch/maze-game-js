@@ -77,7 +77,7 @@ const generateFeatures = function (random, previous) {
   return walls & door_mask | doors
 }
 
-export const generate = function (grid, random, x, y, previous, iter) {
+export const generateMaze = function (grid, random, x, y, previous, iter) {
   previous = shiftFeature(previous)
   let features = previous
   if (iter > 0) {
@@ -99,7 +99,7 @@ export const generate = function (grid, random, x, y, previous, iter) {
     let isNotPrevious = dir !== previous
     let gridIsFree = existingFeatures === 0
     if (hasFeature && isNotPrevious && gridIsFree) {
-      generate(grid, random, o.x, o.y, dir, iter - 1)
+      generateMaze(grid, random, o.x, o.y, dir, iter - 1)
     }
   }
 }
