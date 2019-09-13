@@ -282,6 +282,8 @@ export default class Game {
   endMoveMerchant() {
     this.saveState()
     if (this.entityGrid.find("merchantexit").length === 0) {
+      this.player.levelsCompleted += 1
+      this.stats.levelsCompleted += 1
       this.fadeOut(this.ctx, 500, () => this.reset(true))
     }
   }
